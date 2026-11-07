@@ -97,6 +97,10 @@ class GuardedEnrollment:
     def __init__(self, relay, policy):
         self.relay, self.policy = relay, policy
 
+    @property
+    def master_public(self):
+        return self.relay.master_public   # GatewayServer checks it against the directory pin at start
+
     async def handle(self, action, session, session_expiry, body, client=None):
         if action == 'config':
             return await self.relay.handle(action, session, session_expiry, body)
