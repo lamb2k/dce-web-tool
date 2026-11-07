@@ -1,0 +1,28 @@
+--- a/core/hw/aica/aica_if.cpp
++++ b/core/hw/aica/aica_if.cpp
+@@ -44,6 +44,9 @@
+ static double browserUtc = 0;
+ static double browserUtcAt = 0;
+ static bool browserUtcSet = false;
++static bool browserVmuProvisioned = false;
++extern "C" EMSCRIPTEN_KEEPALIVE void halo_vmu_provisioned() { browserVmuProvisioned = true; }
++extern "C" bool halo_vmu_restore_allowed() { return !browserVmuProvisioned; }
+ extern "C" EMSCRIPTEN_KEEPALIVE int halo_vmu_set_utc(double utc)
+ {
+     if (browserUtcSet || !std::isfinite(utc) || utc < 1577836800.0 || utc > 3500000000.0)
+--- a/shell/libretro/libretro.cpp
++++ b/shell/libretro/libretro.cpp
+@@ -3090,9 +3090,13 @@
+ 	return result;
+ }
+ 
++#ifdef __EMSCRIPTEN__
++extern "C" bool halo_vmu_restore_allowed();
++#endif
+ bool retro_unserialize(const void * data, size_t size)
+ {
+ #ifdef __EMSCRIPTEN__
++    if (!halo_vmu_restore_allowed()) return false;
+ 	net::modbba::browserEthernetInvalidate();
+ #endif
+ 	DEBUG_LOG(SAVESTATE, "retro_unserialize");

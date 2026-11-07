@@ -1,0 +1,51 @@
+--- a/core/hw/aica/aica_if.cpp
++++ b/core/hw/aica/aica_if.cpp
+@@ -22,6 +22,11 @@
+ #include "aica.h"
+ 
+ #include <ctime>
++#ifdef __EMSCRIPTEN__
++#include <emscripten.h>
++#include <cmath>
++#include <cstdio>
++#endif
+ 
+ namespace aica
+ {
+@@ -34,8 +39,36 @@
+ static u32 RealTimeClock;
+ int rtc_schid = -1;
+ 
++#ifdef __EMSCRIPTEN__
++// Opt-in UTC for the private browser device. Default/native RTC policy is unchanged.
++static double browserUtc = 0;
++static double browserUtcAt = 0;
++static bool browserUtcSet = false;
++extern "C" EMSCRIPTEN_KEEPALIVE int halo_vmu_set_utc(double utc)
++{
++    if (browserUtcSet || !std::isfinite(utc) || utc < 1577836800.0 || utc > 3500000000.0)
++        return 0;
++    browserUtc = utc;
++    browserUtcAt = emscripten_get_now();
++    browserUtcSet = true;
++    return 1;
++}
++extern "C" EMSCRIPTEN_KEEPALIVE double halo_vmu_rtc_utc()
++{
++    return static_cast<double>(RealTimeClock) - 631152000.0;
++}
++extern "C" EMSCRIPTEN_KEEPALIVE int halo_vmu_flush()
++{
++    return std::fflush(nullptr) == 0 ? 1 : 0;
++}
++#endif
++
+ u32 GetRTC_now()
+ {
++#ifdef __EMSCRIPTEN__
++    if (browserUtcSet)
++        return 631152000u + static_cast<u32>(browserUtc + (emscripten_get_now() - browserUtcAt) / 1000.0);
++#endif
+ 	// rtc kept static for netplay when savestate is not loaded
+ 	if (config::GGPOEnable)
+ 		// 1/1/70 00:00:00

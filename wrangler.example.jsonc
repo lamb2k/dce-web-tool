@@ -1,0 +1,27 @@
+{
+  "name": "<worker-name>",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-11-04",
+  "compatibility_flags": ["enable_request_signal"],
+  "workers_dev": true,
+  "vars": { "PUBLIC_ACCESS": "0" },
+  "ratelimits": [
+    { "name": "SESSION_LIMIT", "namespace_id": "1001", "simple": { "limit": 20, "period": 60 } },
+    { "name": "SIGNIN_LIMIT", "namespace_id": "1002", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "routes": [{ "pattern": "<your-hostname>", "custom_domain": true }],
+  "preview_urls": false,
+  "r2_buckets": [
+    { "binding": "TEST_FILES", "bucket_name": "<your-private-bucket>" }
+  ],
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "none"
+  },
+  "observability": {
+    "enabled": true,
+    "traces": { "enabled": true }
+  }
+}

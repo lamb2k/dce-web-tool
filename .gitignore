@@ -1,0 +1,11 @@
+.dev.vars
+.dev.vars.*
+.env*
+node_modules/
+.wrangler/
+public/runtime/
+public/files/
+private/
+*.log
+
+wrangler.jsonc

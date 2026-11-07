@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "flycast": "2c48c0188a2afc158b02b6d1865d898756a03071",
+  "wasmFoundation": "16e9c7b4b7065a4bd42e7490e8aab3e9283d5415",
+  "ejsRetroArch": "ed3265745eccec99b48f99e2a2ffc8a6a93823bb",
+  "emscripten": "3.1.74",
+  "recWasmSha256": {
+    "fly_instrument.h": "0426b226bbecaf9abf63f7887165cb0c21786a8b56d6804d1a06f35d2677477e",
+    "rec_wasm.cpp": "e3bedb42189e75e40fc1f40009e6132dfcd299ef1fe4c26296dcde78e4b389e4",
+    "wasm_emit.h": "cbdfa1fee09d4da6a644575d57bde88a315b3743dc9815ff5c84ed441ff6af87",
+    "wasm_module_builder.h": "20952ecb5bf92fa640658632208b04398d9501987f7c9328dfcee7c11bba9a0b"
+  },
+  "patchSha256": {
+    "baseline-wasm.patch": "514323c93499a27c6c2c7abd6868c09997a091e22e94f44755d98087f875ba51",
+    "browser-ethernet.patch": "c30c09d661821be32119928b1ed1dc9bb3525903ff7b3b41458845613ffb6401",
+    "gl_override-fixed.js": "5bc0b54dfdeeadad2d517bb1ea5cc01af03dbd688bbe3cee09e881921467396a",
+    "browser-vmu.patch": "d0e15e82da1ddba659b84347ef43c2a9dbfc42dcafaf5812fe2eeed821679e28",
+    "browser-vmu-guard.patch": "b3d76451b38ed30ed4a2aad6c36e536d9eb71faa5f7bf14b7a969ae18a845ea9",
+    "flycast_stubs.c": "9a5897a12e775d5cd891fb8fba5536178084236051ae216188754abd4c837406"
+  },
+  "qualifiedBuildReceipt": {
+    "revision": "vmu-utc-r3",
+    "javascript": {
+      "bytes": 310208,
+      "sha256": "88104c1abbb8a6ebb6ad86a73cce532ad9878097acc54a15c72c0c05ce50600e"
+    },
+    "wasm": {
+      "bytes": 10447552,
+      "sha256": "07044091a34285028074db1504fd2b8b17fe800e2647cc13a16acdf6085d54eb"
+    },
+    "ethernetKnownStaticBytes": 50448,
+    "vmuClockPayloadBytes": 18,
+    "vmuClockObjectSpanBytes": 24,
+    "initialWasmMemoryBytes": 268435456,
+    "scope": "Actual b8 boot/input, KOS UTC in NY/UTC timezones, authenticated local workerd Play/full Reset/input preserving foreign save/stable identity/fresh RNG. Unconfigured backend clock flag remains zero. No live enrollment, guest DHCP, paired gameplay or new game-image acceptance."
+  },
+  "previousBuildReceipts": [
+    {
+      "revision": "reconnect-r2",
+      "javascript": {
+        "bytes": 309710,
+        "sha256": "9b3c5772c91140a704d1f71948066cd83ba31ae7923d0c73aad329ab9758f7ca"
+      },
+      "wasm": {
+        "bytes": 10447248,
+        "sha256": "84f5d99cebe8d01139759f9ecb6f99664ceb91f7f74c8e32e8eb8763dbe8ec00"
+      },
+      "knownStaticBytes": 50448,
+      "initialWasmMemoryBytes": 268435456,
+      "scope": "Compilation and actual WASM inactive-device RX/stop-reentry export smoke; production C++ service host tests verify existing-device reconnect. No guest DHCP, device traffic, paired gameplay or new-binary game boot acceptance.",
+      "supersededBy": "vmu-utc-r3"
+    },
+    {
+      "javascript": {
+        "bytes": 309710,
+        "sha256": "3d615fb946bf7cf6740616514a72b59ad714fcd3a84b9952c12e63205f7be34d"
+      },
+      "wasm": {
+        "bytes": 10447023,
+        "sha256": "75388b2131b039477dd2df5604d15e9940f8fa0d1b8009a5c5d54a11a447d373"
+      },
+      "scope": "Compilation, exports, bounded queue, b8 title/menu and authenticated transport fixture; no emulated guest DHCP or paired gameplay acceptance",
+      "revision": "initial-network-r1",
+      "supersededBy": "reconnect-r2"
+    }
+  ],
+  "adapterSha256": {
+    "adapter/browser-ethernet.mjs": "ed011e7c5b71e8f5926785dc217e9e0f75bd2163a4879e0adf6330616bbfdfb2",
+    "adapter/app-integration.patch": "83a8c3dc0b6c984bffc3bf8d3513d16680d4e4cfbe2f013539ab2d94bfa3e4e9"
+  }
+}

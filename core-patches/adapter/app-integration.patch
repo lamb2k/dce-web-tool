@@ -1,0 +1,119 @@
+--- a/tools/browser-test/public/runtime-frame.mjs
++++ b/tools/browser-test/public/runtime-frame.mjs
+@@ -1,4 +1,6 @@
++import { createEthernetBridge } from "./browser-ethernet.mjs";
+ import { CORE, AUDIO_LATENCY_MS, inputValues } from "./runtime-config.mjs";
++let bridge;
+ let core, timer, observer, stopped = false, previous = new Int32Array(24);
+ const metrics = { frameCount: 0, memoryBytes: 0, audioState: "unavailable", audioPath: "unavailable", sampleRate: 0,
+   workletUnderrunFrames: 0, workletDroppedFrames: 0,
+@@ -56,7 +58,7 @@
+     await loadCoreScript();
+     core = await window.EJS_Runtime({ noInitialRun: true, canvas: document.getElementById("canvas"),
+       parent: document.body, wasmBinary, callbacks: {}, print() {}, printErr() {},
+-      onAbort() { notify("failed"); }, onExit() { if (!stopped) notify("failed"); } });
++      onAbort() { bridge?.coreStopped(); notify("failed"); }, onExit() { bridge?.coreStopped(); if (!stopped) notify("failed"); } });
+     const FS = core.FS;
+     for (const path of ["/home/web_user/.config/retroarch", "/data/saves", "/system/dc"]) FS.mkdirTree(path);
+     FS.writeFile("/halo.cdi", imageBytes);
+@@ -79,10 +81,17 @@
+     previous = values;
+   },
+   releaseInput() { this.setInput({}); },
++  connectNetwork(lease) {
++    if (!core || stopped || typeof core._halo_eth_configure !== "function") throw new Error("Guest network core unavailable");
++    bridge ??= createEthernetBridge(core, { origin: location.origin });
++    bridge.connect(lease);
++  },
++  disconnectNetwork() { bridge?.stop(); },
++  networkDiagnostics() { return bridge?.metrics() ?? { state: "unconfigured", guestNetwork: false }; },
+   diagnostics() { sample(); return { ...metrics }; },
+   async stop() {
+     if (stopped) return;
+-    this.releaseInput(); stopped = true;
++    this.releaseInput(); bridge?.stop(); bridge = null; stopped = true;
+     clearInterval(timer); observer?.disconnect(); core?.pauseMainLoop?.();
+     if (core?._flyAud) { core._flyAud.node?.disconnect(); core._flyAud.node?.port.close(); core._flyAud.gain?.disconnect(); await core._flyAud.ctx?.close().catch(() => {}); }
+     for (const context of Object.values(core?.AL?.contexts ?? {})) { clearInterval(context.interval); await context.audioCtx.close().catch(() => {}); }
+--- a/tools/browser-test/public/runtime-adapter.mjs
++++ b/tools/browser-test/public/runtime-adapter.mjs
+@@ -37,6 +37,9 @@
+     setInput(value) { if (!stopped) api?.setInput(value); },
+     releaseInput() { api?.releaseInput(); },
+     diagnostics() { return api?.diagnostics() ?? {}; },
++    connectNetwork(lease) { if (stopped) throw new Error("Runtime stopped"); return api?.connectNetwork(lease); },
++    disconnectNetwork() { api?.disconnectNetwork(); },
++    networkDiagnostics() { return api?.networkDiagnostics() ?? { state: "unconfigured", guestNetwork: false }; },
+     async reset() { if (stopped) throw new Error("Runtime stopped"); await dispose(); await start(); },
+     async stop() { stopped = true; await dispose(); onState("stopped"); },
+   };
+--- /dev/null
++++ b/tools/browser-test/public/browser-ethernet.mjs
+@@ -0,0 +1,67 @@
++// Private staged adapter. Not enabled or shipped by current utility.
++const MAX_FRAME=1514, MAX_FRAMES=32, MAX_BYTES=48*1024, MAX_AGE=1000, MAX_BUFFERED=65536;
++export function validFrame(bytes) {
++  return bytes instanceof Uint8Array && bytes.length>=14 && bytes.length<=MAX_FRAME &&
++    bytes[12]===8 && (bytes[13]===0 || bytes[13]===6);
++}
++export function createEthernetBridge(Module,{origin,WebSocketClass=WebSocket,now=()=>performance.now(),wallNow=()=>Date.now(),setTimer=setTimeout,clearTimer=clearTimeout}={}) {
++  let stopping=false, socket=null, generation=0, attempt=0, state='unconfigured', queue=[], queuedBytes=0, timer=null, deadline=0, expires=0;
++  const stats={txDropped:0,rxDropped:0,txHighWater:0,txBytesHighWater:0,rxFrames:0,txFrames:0};
++  function clearQueue() {queue=[];queuedBytes=0;}
++  function closeTransport(next='closed') {
++    ++attempt; state=next; generation=0; clearQueue();
++    if(timer!==null) clearTimer(timer);timer=null;
++    const old=socket;socket=null;if(old) {old.onopen=old.onmessage=old.onclose=old.onerror=null;old.close();}
++  }
++  function stop(next='closed') {closeTransport(next);stopping=true;try{Module._halo_eth_stop();}finally{stopping=false;}}
++  function schedule() {if(timer===null)timer=setTimer(pump,10);}
++  function pump() {
++    timer=null;if(!socket)return;
++    if(wallNow()>=expires || (state==='connecting' && now()>=deadline)){stop('expired');return;}
++    if(state==='gateway-authenticated') {
++      while(queue.length) {
++        const entry=queue[0];
++        if(entry.generation!==generation || now()-entry.time>MAX_AGE) {queue.shift();queuedBytes-=entry.bytes.length;++stats.txDropped;continue;}
++        if(socket.bufferedAmount+entry.bytes.length>MAX_BUFFERED)break;
++        queue.shift();queuedBytes-=entry.bytes.length;
++        try {socket.send(entry.bytes);++stats.txFrames;}catch {++stats.txDropped;stop('failed');return;}
++      }
++    }
++    schedule();
++  }
++  function connect(lease) {
++    // Lease is authenticated server output; endpoints never come from a game packet.
++    const url=new URL(lease?.websocketPath,origin);
++    const allowed=new URL(origin);
++    if(url.origin!==allowed.origin || !/^\/api\/guest-network\/[A-Za-z0-9_-]{16,128}$/.test(url.pathname) || url.search || url.hash ||
++       !Number.isSafeInteger(lease.expiresAt) || lease.expiresAt<=wallNow() || lease.expiresAt-wallNow()>3600000)
++      throw new Error('Invalid network lease');
++    stop();expires=lease.expiresAt;deadline=now()+10000;state='connecting';const ticket=++attempt;
++    url.protocol=allowed.protocol==='https:'?'wss:':'ws:';
++    try {socket=new WebSocketClass(url.href);}catch(error){stop('failed');throw error;}
++    socket.binaryType='arraybuffer';const current=socket;
++    current.onopen=()=>{if(ticket!==attempt)return;generation=Module._halo_eth_configure();if(!generation){stop('failed');return;}state='gateway-authenticated';};
++    current.onmessage=event=>{
++      if(ticket!==attempt || state!=='gateway-authenticated')return;
++      if(wallNow()>=expires){stop('expired');return;}
++      if(!(event.data instanceof ArrayBuffer)){++stats.rxDropped;stop('protocol-error');return;}
++      const bytes=new Uint8Array(event.data);
++      if(!validFrame(bytes)){++stats.rxDropped;stop('protocol-error');return;}
++      // Re-read HEAPU8 on every callback; never retain a view across memory growth.
++      Module.HEAPU8.set(bytes,Module._halo_eth_rx_buffer());
++      if(Module._halo_eth_rx(generation,bytes.length))++stats.rxFrames;else ++stats.rxDropped;
++    };
++    current.onerror=()=>{if(ticket===attempt)stop('failed');};
++    current.onclose=()=>{if(ticket===attempt)stop('disconnected');};schedule();
++  }
++  const bridge={connect,stop,
++    coreStopped(){if(!stopping)closeTransport('core-stopped');},
++    send(bytes,gen){
++      if(state!=='gateway-authenticated'||gen!==generation||wallNow()>=expires||!validFrame(bytes)||queue.length>=MAX_FRAMES||queuedBytes+bytes.length>MAX_BYTES){++stats.txDropped;return 0;}
++      const owned=bytes.slice();queue.push({bytes:owned,generation:gen,time:now()});queuedBytes+=owned.length;
++      stats.txHighWater=Math.max(stats.txHighWater,queue.length);stats.txBytesHighWater=Math.max(stats.txBytesHighWater,queuedBytes);schedule();return 1;
++    },
++    metrics(){return {state,generation,queuedFrames:queue.length,queuedBytes,...stats,guestNetwork:false};}
++  };
++  Module.haloEthernet=bridge;return bridge;
++}

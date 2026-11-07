@@ -1,0 +1,41 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Halo DCE Network Test Tool</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <h1 aria-label="Halo DCE Network Test Tool">Halo DCE<span class="tool-title">Network Test Tool</span></h1>
+  </header>
+  <div class="workspace">
+    <section class="display" aria-label="Game display">
+      <div class="viewport">
+        <div id="game" tabindex="0" role="application" aria-label="Halo game display" aria-describedby="controls"></div>
+        <div id="display-placeholder" class="empty-display" aria-hidden="true"><span class="empty-title">Halo DCE</span></div>
+      </div>
+      <p id="status" role="status">Preparing build…</p>
+    </section>
+    <aside aria-label="Test session">
+      <section class="build-panel" aria-labelledby="build-title">
+        <h2 id="build-title">Test build</h2>
+        <p id="build">—</p>
+        <progress id="download-progress" aria-label="Test build download" max="1" value="0" hidden></progress>
+        <button id="play" class="primary" disabled>Play</button>
+        <div class="display-controls"><button id="reset" disabled>Reset</button><button id="fullscreen">Fullscreen</button></div>
+      </section>
+      <section id="controls" class="controls" aria-label="Controls">
+        <h2>Controls</h2><button id="start" disabled>Start · Enter</button>
+        <dl><dt>Stick</dt><dd>W A S D</dd><dt>D-pad</dt><dd>Arrow keys</dd><dt>A / B</dt><dd>Space / X</dd><dt>X / Y</dt><dd>C / V</dd><dt>Triggers</dt><dd>Q / E</dd></dl>
+        <p>Standard gamepad supported.</p>
+      </section>
+    </aside>
+  </div>
+  <footer><div><span id="connection">Guest networking unavailable</span><span id="audio-state"></span><a href="/licenses.html">Source and licences</a></div><button id="report">Download diagnostics</button></footer>
+</main>
+<script type="module" src="/app.mjs"></script>
+</body>
+</html>

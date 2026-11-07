@@ -1,0 +1,14 @@
+{
+    "list_response": {
+        "body": "{\"protocol\":1,\"family\":\"dce-net\",\"network_version\":4,\"master\":{\"key_id\":\"10ba682c8ad13513\",\"time\":1793800000},\"ttl\":90,\"truncated\":false,\"servers\":[{\"id\":\"9bd6d6c8eb79978c\",\"key_id\":\"1325b850c2871916\",\"protocol\":1,\"family\":\"dce-net\",\"network_version\":4,\"build\":305419896,\"map\":0,\"map_crc\":2596069104,\"mode\":0,\"score\":15,\"players\":1,\"capacity\":2,\"flags\":0,\"name\":\"DCE fixture\",\"sequence\":1,\"time\":1793800000,\"instance\":\"0123456789abcdef\",\"game_port\":5150,\"endpoint\":{\"ip\":\"127.0.0.1\",\"port\":5150},\"updated\":1793800000,\"expires\":1793800090,\"reachable\":true}]}",
+        "headers": {
+            "Signature": "ed25519=D3cG8NwP80p2JnH+4Qcdw+QMNzmmjYlX2VSOpqX1sJgQkUWmlF5DY0BkodocRST4Ii1dUomu1Nh7ODol44JjBQ==",
+            "Signature-Key": "10ba682c8ad13513",
+            "Signature-Time": "1793800000"
+        },
+        "status": 200
+    },
+    "time": 1793800000,
+    "master_public": "ed25519:d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737",
+    "notice": "Public synthetic Go-signed fixture; no production identity."
+}

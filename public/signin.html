@@ -1,0 +1,12 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Halo DCE Network Test Tool</title><link rel="stylesheet" href="/signin.css"></head>
+<body><main>
+  <h1>Halo DCE<br>Network Test Tool</h1>
+  <form id="signin" method="post" action="/signin">
+    <label for="username">Username</label><input id="username" name="username" autocomplete="username" maxlength="64" required autofocus>
+    <label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" maxlength="256" required>
+    <button type="submit">Sign in</button><p id="status" role="status"></p>
+  </form>
+  <p><a href="/licenses.html">Source and licences</a></p>
+</main><script type="module" src="/signin.mjs"></script></body></html>
