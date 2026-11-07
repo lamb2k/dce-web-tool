@@ -19,22 +19,39 @@
     "flycast_stubs.c": "9a5897a12e775d5cd891fb8fba5536178084236051ae216188754abd4c837406"
   },
   "qualifiedBuildReceipt": {
-    "revision": "vmu-utc-r3",
+    "revision": "stubs-source-r4",
     "javascript": {
       "bytes": 310208,
-      "sha256": "88104c1abbb8a6ebb6ad86a73cce532ad9878097acc54a15c72c0c05ce50600e"
+      "sha256": "ac74880076412d78907546354005c0395a2d53545037868a245146f7285b9b73"
     },
     "wasm": {
-      "bytes": 10447552,
-      "sha256": "07044091a34285028074db1504fd2b8b17fe800e2647cc13a16acdf6085d54eb"
+      "bytes": 10446310,
+      "sha256": "948835c97eafb4d4f1f1eba69c56c6007524ae091eb39b0cb97d8fafbdc5c4b9"
     },
     "ethernetKnownStaticBytes": 50448,
     "vmuClockPayloadBytes": 18,
     "vmuClockObjectSpanBytes": 24,
     "initialWasmMemoryBytes": 268435456,
-    "scope": "Actual b8 boot/input, KOS UTC in NY/UTC timezones, authenticated local workerd Play/full Reset/input preserving foreign save/stable identity/fresh RNG. Unconfigured backend clock flag remains zero. No live enrollment, guest DHCP, paired gameplay or new game-image acceptance."
+    "scope": "Rebuilt from this README's recipe with flycast_stubs.c. Headless Edge on local Miniflare and local gateway, one run per image of v0.55-b15-web (web15), v0.55-b15-web-official at b9890573 and v0.55-b15-web-broker at b781041e: game boot, Start reaching the menu, full Reset back to the title, transport open with HTTP 101. Host test-queue and test-service pass. Local compatibility date 2025-09-01, not the deployed date. No live enrollment, guest DHCP (network frames 0 and device not started), paired gameplay or hardware."
   },
   "previousBuildReceipts": [
+    {
+      "revision": "vmu-utc-r3",
+      "javascript": {
+        "bytes": 310208,
+        "sha256": "88104c1abbb8a6ebb6ad86a73cce532ad9878097acc54a15c72c0c05ce50600e"
+      },
+      "wasm": {
+        "bytes": 10447552,
+        "sha256": "07044091a34285028074db1504fd2b8b17fe800e2647cc13a16acdf6085d54eb"
+      },
+      "ethernetKnownStaticBytes": 50448,
+      "vmuClockPayloadBytes": 18,
+      "vmuClockObjectSpanBytes": 24,
+      "initialWasmMemoryBytes": 268435456,
+      "scope": "Actual b8 boot/input, KOS UTC in NY/UTC timezones, authenticated local workerd Play/full Reset/input preserving foreign save/stable identity/fresh RNG. Unconfigured backend clock flag remains zero. No live enrollment, guest DHCP, paired gameplay or new game-image acceptance.",
+      "supersededBy": "stubs-source-r4"
+    },
     {
       "revision": "reconnect-r2",
       "javascript": {

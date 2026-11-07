@@ -46,10 +46,11 @@ git -C "$WORK/source" apply --ignore-space-change "$PATCHES/browser-vmu-guard.pa
 source "$EMSDK_ROOT/emsdk_env.sh"
 export EM_CACHE="$WORK/emscripten-cache" EMCC_CORES=2 BINARYEN_CORES=2
 # Fresh private cache; preserve SDK cache.
-cp -a "$EMSDK_ROOT/upstream/emscripten/cache" "$EM_CACHE"
+# emsdk_env.sh clears EMSDK_ROOT, so use the EMSDK it sets.
+cp -a "$EMSDK/upstream/emscripten/cache" "$EM_CACHE"
 # Build the pinned frontend's object target without attempting its separate final link.
 printf 'include Makefile.emulatorjs\n.PHONY: objects\nobjects: $(RARCH_OBJ)\n' > "$WORK/EJS-RetroArch/Makefile.core-objects"
-(cd "$WORK/EJS-RetroArch" && nice -n 10 emmake make -f Makefile.core-objects objects -j2)
+(cd "$WORK/EJS-RetroArch" && nice -n 10 emmake make -f Makefile.core-objects objects -j2 HAVE_OPENGLES3=1 HAVE_THREADS=0 HAVE_RWEBAUDIO=0 HAVE_AL=1 LTO=1)
 export SOURCE_DIR="$WORK/source" BUILD_DIR="$WORK/build-wasm" OUT_DIR="$WORK/out-network"
 export EJS_RA="$WORK/EJS-RetroArch"
 export GL_OVERRIDE="$PATCHES/gl_override-fixed.js"

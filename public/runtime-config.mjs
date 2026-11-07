@@ -1,7 +1,7 @@
 // Private files stay outside Git. VMU/UTC core, qualified with actual b8 KOS RTC.
 export const CORE = Object.freeze({
-  javascript: { path: "/files/flycast_libretro-vmu.js", bytes: 310208, sha256: "88104c1abbb8a6ebb6ad86a73cce532ad9878097acc54a15c72c0c05ce50600e" },
-  wasm: { path: "/files/flycast_libretro-vmu.wasm", bytes: 10447552, sha256: "07044091a34285028074db1504fd2b8b17fe800e2647cc13a16acdf6085d54eb" },
+  javascript: { path: "/files/flycast_libretro-vmu.js", bytes: 310208, sha256: "ac74880076412d78907546354005c0395a2d53545037868a245146f7285b9b73" },
+  wasm: { path: "/files/flycast_libretro-vmu.wasm", bytes: 10446310, sha256: "948835c97eafb4d4f1f1eba69c56c6007524ae091eb39b0cb97d8fafbdc5c4b9" },
 });
 export const AUDIO_LATENCY_MS = 64;
 const keyButtons = { Enter: 3, ArrowUp: 4, ArrowDown: 5, ArrowLeft: 6, ArrowRight: 7,
