@@ -119,3 +119,17 @@ test("lost transport stops renewal", async () => {
   await rig.tick(300000);
   assert.ok(!rig.calls.includes("POST-renew")); assert.equal(rig.calls.at(-1), "DELETE");
 });
+
+test("a device stop from the game takes a fresh lease; a lost transport does not",async()=>{
+  const requests=[];let state="closed",terminalReason=0,connects=0;
+  const bridge={connect(){connects++;state="gateway-authenticated";terminalReason=0;},stop(){state="closed";},metrics:()=>({state,terminalReason,txFrames:0,rxFrames:0,txDropped:0,rxDropped:0,queuedBytes:0,txHighWater:0})};
+  const lease=()=>({lease:"a".repeat(43),websocketPath:"/api/guest-network/"+"a".repeat(43),mode:"dce",expiresAt:Date.now()+60000});
+  const fetcher=async(url,o)=>{requests.push([url,o.method]);return new Response(o.method==="POST"?JSON.stringify(lease()):null,{status:o.method==="POST"?200:204});};
+  const network=guestNetwork({},{origin:"https://x.invalid",fetcher,bridgeFactory:()=>bridge});
+  await network.prepare();await network.activate();assert.equal(connects,1);
+  state="stopped";terminalReason=7;network.metrics();
+  for(let n=0;n<50&&connects<2;n++)await new Promise(r=>setTimeout(r,5));
+  assert.equal(connects,2);assert.equal(network.metrics().state,"gateway-authenticated");
+  state="stopped";terminalReason=5;network.metrics();
+  await new Promise(r=>setTimeout(r,20));assert.equal(connects,2);assert.equal(network.metrics().state,"stopped");
+});

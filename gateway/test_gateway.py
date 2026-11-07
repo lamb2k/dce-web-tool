@@ -177,6 +177,47 @@ class GatewayTests(unittest.TestCase):
         time.sleep(.1)
         log=g.close();self.assertIn('refused=7',log);self.assertIn('accepted=0',log)
 
+    def test_route_allow(self):
+        directory=('dir.example','192.0.2.9')
+        allow='broker.example=192.0.2.10:1883/t,=192.0.2.11:5464/u'
+        os.environ['HALO_GATEWAY_ROUTE_ALLOW']=allow
+        try:
+            g=Guest(mode='guest',dest='10.77.1.2',port=1,directory=directory,control=True)
+        finally:
+            del os.environ['HALO_GATEWAY_ROUTE_ALLOW']
+        for f in [udp(g.addr,'192.0.2.11',40000,5464),tcp(g.addr,'192.0.2.10',40001,1883,1,0,2)]:
+            g.send(f)
+        for f in [udp(g.addr,'192.0.2.11',40000,5465),udp(g.addr,'192.0.2.12',40000,5464),
+                  udp(g.addr,'192.0.2.10',40000,1883),tcp(g.addr,'192.0.2.11',40001,5464,1,0,2),
+                  tcp(g.addr,'192.0.2.10',40001,1884,1,0,2)]:
+            g.send(f)
+        time.sleep(.1)
+        log=g.close();self.assertIn('refused=5',log);self.assertIn('accepted=2',log)
+
+    def test_route_allow_tcp_cap(self):
+        os.environ['HALO_GATEWAY_ROUTE_ALLOW']='=192.0.2.10:1883/t'
+        try:
+            g=Guest(mode='guest',dest='10.77.1.2',port=1,directory=('dir.example','192.0.2.9'),control=True)
+        finally:
+            del os.environ['HALO_GATEWAY_ROUTE_ALLOW']
+        for i in range(12):g.send(tcp(g.addr,'192.0.2.10',40000+i,1883,1,0,2))
+        time.sleep(.1)
+        log=g.close();self.assertIn('accepted=8',log);self.assertIn('refused=4',log)
+
+    def test_route_allow_off_by_default(self):
+        g=Guest(mode='guest',dest='10.77.1.2',port=1,directory=('dir.example','192.0.2.9'),control=True)
+        g.send(udp(g.addr,'192.0.2.11',40000,5464));g.send(tcp(g.addr,'192.0.2.10',40001,1883,1,0,2))
+        time.sleep(.1)
+        log=g.close();self.assertIn('refused=2',log)
+
+    def test_route_allow_bad_config(self):
+        for bad in ('=127.0.0.1:5464/u','=192.0.2.11:5464/x','=192.0.2.11:0/u','nope','=192.0.2.11/u'):
+            os.environ['HALO_GATEWAY_ROUTE_ALLOW']=bad
+            try:
+                with self.assertRaises(RuntimeError):Guest(mode='guest',dest='10.77.1.2',port=1,directory=('dir.example','192.0.2.9'),control=True)
+            finally:
+                del os.environ['HALO_GATEWAY_ROUTE_ALLOW']
+
     def test_malformed_ipc_and_lease_expiry(self):
         g=Guest();g.p.stdin.write(b'\xff\xff');g.p.stdin.flush()
         g.p.wait(timeout=2);self.assertEqual(g.p.returncode,4);g.close()

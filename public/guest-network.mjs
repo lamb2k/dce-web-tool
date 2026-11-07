@@ -10,7 +10,8 @@ export function guestNetwork(core, { role = null, origin = location.origin, fetc
   const controller = new AbortController();
   // Renew halfway through a grant. "final" means the server can grant no more time: the
   // session, or the helper's one hour, ends at expiresAt. "failed" means the last attempt failed.
-  const RENEW_MARGIN = 300000, RETRY = 15000;
+  const RENEW_MARGIN = 300000, RETRY = 15000, MAX_RESTARTS = 8;
+  let restarts = 0;
   let renewTimer = null, renewState = "idle", renewals = 0, renewFailures = 0;
   function scheduleRenew(delay) {
     if (renewTimer !== null) clearTimer(renewTimer);
@@ -81,6 +82,13 @@ export function guestNetwork(core, { role = null, origin = location.origin, fetc
       bridge.stop(); const old = path; path = null; lease = null; state = "unavailable"; await revoke(old); return false;
     }
   }
+  // The game closes its link on leaving a menu, which stops the device. A fresh lease serves its next link.
+  async function restart() {
+    if (renewTimer !== null) clearTimer(renewTimer); renewTimer = null;
+    const old = path; path = null; lease = null; pending = undefined; state = "restarting"; restarts++;
+    await revoke(old);
+    if (!stopped && await prepare()) await activate();
+  }
   async function stop() {
     if (stopped) return;
     stopped = true; state = "stopped"; if (renewTimer !== null) clearTimer(renewTimer); renewTimer = null; controller.abort(); bridge.stop();
@@ -93,7 +101,7 @@ export function guestNetwork(core, { role = null, origin = location.origin, fetc
     const m = bridge.metrics();
     if (state === "gateway-authenticated" && m.state !== "gateway-authenticated") {
       // Core/device teardown or transport loss cannot retain a live server lease.
-      void stop();
+      if (m.terminalReason === 7 && restarts < MAX_RESTARTS) void restart(); else void stop();
     }
     return { state: state === "gateway-authenticated" ? m.state : state,
       terminalReason: m.terminalReason ?? 0, closeCode: m.closeCode ?? 0,

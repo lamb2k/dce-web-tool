@@ -389,6 +389,8 @@ class GatewayServer:
                 control_read,control_write=os.pipe()
                 os.set_blocking(control_write,False)
                 child_env['HALO_GATEWAY_CONTROL_FD']=str(control_read)
+            if os.environ.get('HALO_GATEWAY_ROUTE_ALLOW'):
+                child_env['HALO_GATEWAY_ROUTE_ALLOW']=os.environ['HALO_GATEWAY_ROUTE_ALLOW']
             if os.environ.get('HALO_GATEWAY_RELAY'):
                 child_env['HALO_GATEWAY_RELAY']=os.environ['HALO_GATEWAY_RELAY']
             try:

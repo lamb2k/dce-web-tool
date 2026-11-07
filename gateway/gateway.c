@@ -68,6 +68,47 @@ static int transport_checksum(const uint8_t *f,unsigned total) {
     return sum_bytes(f+34,total-20,sum_bytes(f+26,8,f[23]+total-20))==65535;
 }
 static int same(const void *a,const void *b,size_t n) { return memcmp(a,b,n)==0; }
+/* HALO_GATEWAY_ROUTE_ALLOW, operator set, off unless set: "name=ip:port/t,=ip:port/u", at most
+   ROUTE_MAX exact tuples a guest may reach from any source port. A name also answers in DNS.
+   Nothing here comes from a guest or a browser. */
+#define ROUTE_MAX 6
+#define ROUTE_TCP_SYNS 8u         /* the route tries one broker, with retries */
+#define ROUTE_TCP_BYTES (256u*1024u)
+typedef struct { char name[64]; uint32_t ip; uint16_t port; uint8_t proto; } RouteAllow;
+static RouteAllow route_allow[ROUTE_MAX]; static unsigned route_allow_count;
+static int route_allowed(uint32_t ip,unsigned port,unsigned proto) {
+    for(unsigned i=0;i<route_allow_count;i++)
+        if(route_allow[i].ip==ip && route_allow[i].port==port && route_allow[i].proto==proto)return 1;
+    return 0;
+}
+static int route_parse(const char *text) {
+    char copy[512],*save=NULL;
+    if(strlen(text)>=sizeof copy)return 0;
+    strcpy(copy,text);
+    for(char *item=strtok_r(copy,",",&save);item;item=strtok_r(NULL,",",&save)) {
+        char *eq=strchr(item,'='),*colon,*slash;
+        if(!eq || route_allow_count>=ROUTE_MAX)return 0;
+        RouteAllow *r=&route_allow[route_allow_count];
+        size_t len=(size_t)(eq-item);
+        if(len>=sizeof r->name)return 0;
+        memcpy(r->name,item,len);r->name[len]=0;
+        for(size_t i=0;i<len;i++)if(!((item[i]>='a' && item[i]<='z') || (item[i]>='0' && item[i]<='9') ||
+            item[i]=='-' || item[i]=='.'))return 0;
+        colon=strchr(eq+1,':');slash=colon?strchr(colon,'/'):NULL;
+        if(!colon || !slash)return 0;
+        *colon=0;*slash=0;
+        struct in_addr a;
+        if(inet_pton(AF_INET,eq+1,&a)!=1)return 0;
+        uint32_t h=ntohl(a.s_addr);
+        if((h>>24)==0 || (h>>24)==127 || (h>>24)>=224 || (h&0xffff0000)==0xa9fe0000 || (h&0xffff0000)==0x0a4d0000)return 0;
+        char *end;long port=strtol(colon+1,&end,10);
+        if(*end || port<1 || port>65535)return 0;
+        if(strcmp(slash+1,"t") && strcmp(slash+1,"u"))return 0;
+        r->ip=a.s_addr;r->port=(uint16_t)port;r->proto=slash[1]=='t'?6:17;
+        route_allow_count++;
+    }
+    return route_allow_count>0;
+}
 static int peer_allowed(Gateway *g,uint32_t ip,unsigned port) {
     for(unsigned i=0;i<FLOW_MAX;i++)
         if(g->peers[i].ip==ip && g->peers[i].port==port &&
@@ -160,6 +201,17 @@ static int allowed(Gateway *g,const uint8_t *f,size_t n) {
         if(proto==17 && dst==g->dns.s_addr && dport==53)return 2;
         if(proto==6 && dst==g->directory_ip.s_addr && dport==443)return 3;
     }
+    if(route_allowed(dst,dport,proto)) {
+        /* A broker is someone else's service and sees this server's address: each guest
+           gets few connections and few bytes, for the whole lease. */
+        if(proto==6) {
+            static unsigned route_syns; static size_t route_bytes;
+            if((f[47]&0x12)==0x02 && ++route_syns>ROUTE_TCP_SYNS)return 0;
+            route_bytes+=n;
+            if(route_bytes>ROUTE_TCP_BYTES)return 0;
+        }
+        return 1;
+    }
     if(proto==17 && sport==5151 && (catalog_allowed(g,dst,dport) || flow_live(g,dst,dport)))return 1;
     /* Operator-set relay hello port, for a browser host's game socket only. */
     if(g->host && proto==17 && sport==5150 && g->relay_port && dst==g->relay_ip && dport==g->relay_port)return 1;
@@ -175,6 +227,7 @@ static int incoming_allowed(Gateway *g,const uint8_t *f,size_t n) {
             (g->directory_host[0] && src==g->dns.s_addr && sport==53) ||
             (g->native && src==g->dest.s_addr && sport==g->port) ||
             (!g->native && !g->host && !g->join_only && src==g->dest.s_addr && sport==g->port) ||
+            route_allowed(src,sport,17) ||
             (g->host && dport==5150) || (dport==5151 && (catalog_allowed(g,src,sport) || flow_live(g,src,sport)));
         if(!known)return 0;
     }
@@ -223,7 +276,14 @@ static int directory_dns(Gateway *g,const uint8_t *f) {
     }
     host[used]=0;
     if(pos>=length || q[pos++]!=0 || pos+4!=length || be16(q+pos)!=1 ||
-       be16(q+pos+2)!=1 || strcmp(host,g->directory_host))return 0;
+       be16(q+pos+2)!=1)return 0;
+    uint32_t answer_ip=g->directory_ip.s_addr;
+    if(strcmp(host,g->directory_host)) {
+        unsigned i;
+        for(i=0;i<route_allow_count;i++)if(route_allow[i].name[0] && !strcmp(host,route_allow[i].name))break;
+        if(i==route_allow_count)return 0;
+        answer_ip=route_allow[i].ip;
+    }
     uint8_t out[14+20+8+512+16]={0};
     memcpy(out,guest_mac,6); out[6]=0x52;out[7]=0x55;memcpy(out+8,&g->dns.s_addr,4);
     put16(out+12,0x800);out[14]=0x45;out[22]=64;out[23]=17;
@@ -232,7 +292,7 @@ static int directory_dns(Gateway *g,const uint8_t *f) {
     put16(out+24,~sum_bytes(out+14,20,0));put16(out+34,53);put16(out+36,be16(f+34));put16(out+38,8+dnslen);
     uint8_t *answer=out+42;memcpy(answer,q,length);put16(answer+2,0x8080|(be16(q+2)&0x100));put16(answer+6,1);
     uint8_t *rr=answer+length;put16(rr,0xc00c);put16(rr+2,1);put16(rr+4,1);
-    rr[9]=30;put16(rr+10,4);memcpy(rr+12,&g->directory_ip.s_addr,4);
+    rr[9]=30;put16(rr+10,4);memcpy(rr+12,&answer_ip,4);
     send_packet(out,14+total,g);return 1;
 }
 /* Strict single-record ClientHello. Bounds checked before every variable field. */
@@ -388,6 +448,8 @@ int main(int argc,char **argv) {
         if(g.control<3 || fcntl(g.control,F_SETFL,O_NONBLOCK)<0)return 2;
     }
     if(g.join_only && g.control<0)return 2;
+    const char *route=getenv("HALO_GATEWAY_ROUTE_ALLOW");
+    if(route && !route_parse(route))return 2;
     const char *relay=getenv("HALO_GATEWAY_RELAY");
     if(relay) {
         char text[32];const char *colon=strchr(relay,':');struct in_addr address;
