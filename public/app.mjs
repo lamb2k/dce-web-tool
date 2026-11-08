@@ -1,6 +1,7 @@
 ﻿import { validateManifest, report, readBounded } from "./model.mjs";
 import { prepareImage } from "./prepare-image.mjs";
 import { capabilities, boot } from "./runtime-adapter.mjs";
+import { summary, pageTransportText } from "./match-diag.mjs";
 const $ = id => document.getElementById(id);
 let manifest, runtime, preparedImage, busy = false, imageVerified = false;
 let runtimeState = "unavailable";
@@ -8,6 +9,49 @@ let storageState = "preparing";
 let connectionState = "unavailable";
 const events = [], keys = new Set();
 const record = code => { events.push({ at: new Date().toISOString(), code }); if (events.length > 32) events.shift(); };
+// Diagnostic builds (build name carries -diag): show and save the cause of every match end or link loss.
+let diagSeq = 0, diagPageEnd = "", diagLast = null;
+const diagEnabled = () => manifest?.status === "ready" && manifest.build.includes("-diag");
+function diagSave(report) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(report, null, 2) + "\n"], { type: "application/json" }));
+  const link = document.createElement("a"); link.href = url;
+  link.download = `halo-match-diag-${report.savedAt.replace(/[:.]/g, "-")}.json`; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+function diagShow(report) {
+  diagLast = report;
+  report.savedAt = new Date().toISOString(); report.build = manifest.build; report.commit = manifest.commit;
+  $("diag").hidden = false; $("diag-text").textContent = summary(report);
+  $("diag-file").textContent = `Saved to your Downloads folder as halo-match-diag-${report.savedAt.replace(/[:.]/g, "-")}.json`;
+  diagSave(report);
+  diagSend(report);
+}
+// Sends each report once to the site's /diag (8 KB at most): the report fields, image version, time and browser name. No keys, names or addresses.
+async function diagSend(report) {
+  const status = $("diag-sent"); status.textContent = "Sending report...";
+  const body = { ...report, userAgent: navigator.userAgent.slice(0, 200) };
+  let text = JSON.stringify(body);
+  while (text.length > 8192 && body.events?.length) { body.events = body.events.slice(1); text = JSON.stringify(body); }
+  if (text.length > 8192) { delete body.events; text = JSON.stringify({ ...body, message: String(body.message ?? "").slice(0, 200) }); }
+  let ok = false;
+  if (text.length <= 8192) {
+    try { ok = (await fetch("/diag", { method: "POST", headers: { "Content-Type": "application/json" }, body: text, credentials: "same-origin" })).status === 201; } catch { ok = false; }
+  }
+  status.textContent = ok ? "Report sent" : "Report not sent";
+}
+function diagPoll() {
+  if (!diagEnabled() || !runtime) return;
+  const page = runtime.networkDiagnostics?.() ?? {}, r = runtime.matchDiag?.();
+  const pageLink = { state: page.state, terminalReason: page.terminalReason ?? 0, closeCode: page.closeCode ?? 0, txFrames: page.txFrames, rxFrames: page.rxFrames };
+  if (r && r.seq !== diagSeq) { diagSeq = r.seq; if (r.seq) diagShow({ ...r, page: pageLink, events: events.slice(-8) }); }
+  const ended = page.terminalReason && page.terminalReason !== 7 ? `${page.terminalReason}/${page.closeCode}` : runtimeState === "failed" ? "runtime" : "";
+  if (ended && ended !== diagPageEnd) {
+    diagPageEnd = ended;
+    diagShow({ ...(r ?? {}), seq: r?.seq ?? 0, end: runtimeState === "failed" ? "runtime stopped" : "page link ended: " + pageTransportText(page.terminalReason), message: r?.message ?? "",
+      failingCheck: r?.failingCheck ?? { file: "", line: 0, check: "", returnCode: 0 }, lastObject: r?.lastObject ?? { tag: "0x00000000", kind: "none", id: 0, definition: 0 },
+      transport: r?.transport ?? { error: "unknown" }, route: r?.route ?? { state: "unknown", failure: "unknown" }, lobby: r?.lobby ?? { failure: "unknown" }, world: r?.world ?? "unknown", page: pageLink, events: events.slice(-8) });
+  }
+}
 function refresh() {
   $("play").disabled = !preparedImage || !imageVerified || !capabilities.boot || busy || Boolean(runtime);
   $("reset").disabled = !runtime || busy;
@@ -52,6 +96,7 @@ async function play() {
   finally { busy = false; refresh(); }
 }
 $("play").addEventListener("click", play);
+$("diag-save").addEventListener("click", () => { if (diagLast) diagSave(diagLast); });
 $("reset").addEventListener("click", async () => {
   if (!runtime || busy) return;
   release(); busy = true; status("Resetting…"); refresh();
@@ -89,7 +134,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) relea
 let lastNetworkStatus = 0;
 function inputFrame(time = 0) {
   if (time - lastNetworkStatus >= 1000) {
-    lastNetworkStatus = time;
+    lastNetworkStatus = time; diagPoll();
     const state = runtime?.networkDiagnostics()?.state;
     connectionState = state === "gateway-authenticated" ? "gateway-authenticated" : "unavailable";
     $("connection").textContent = connectionState === "gateway-authenticated" ? "Gateway connected · guest validation pending" : "Guest networking unavailable";

@@ -1,7 +1,8 @@
 import { CORE, AUDIO_LATENCY_MS, inputValues } from "./runtime-config.mjs";
 import { guestNetwork } from "./guest-network.mjs";
+import { findBlock, readBlock } from "./match-diag.mjs";
 let core, timer, observer, stopped = false, previous = new Int32Array(24);
-let network, failed = false;
+let network, failed = false, diagBase = -1, diagScan = 0, diagSerial = "";
 const metrics = { frameCount: 0, memoryBytes: 0, audioState: "unavailable", audioPath: "unavailable", sampleRate: 0,
   workletUnderrunFrames: 0, workletDroppedFrames: 0,
   bufferedMs: 0, audioStarvations: 0, maxAudioGapMs: 0, longTasks: 0, maxLongTaskMs: 0,
@@ -69,7 +70,7 @@ window.haloRuntime = {
     await loadCoreScript();
     if (stopped) throw new Error("Runtime stopped");
     core = await window.EJS_Runtime({ noInitialRun: true, canvas: document.getElementById("canvas"),
-      parent: document.body, wasmBinary, callbacks: {}, print() {}, printErr() {},
+      parent: document.body, wasmBinary, callbacks: {}, print(text) { if (typeof text === "string" && text.startsWith("MATCHDIAG")) { diagSerial = text; console.log(text); } }, printErr() {},
       onAbort() { failed = true; void network?.stop(); notify("failed"); }, onExit() { void network?.stop(); if (!stopped) { failed = true; notify("failed"); } } });
     if (stopped || failed) throw new Error("Runtime stopped");
     // #role=host|join on the tester page: the Worker refuses all query strings. Never an address.
@@ -113,6 +114,17 @@ window.haloRuntime = {
     previous = values;
   },
   releaseInput() { this.setInput({}); },
+  // Diagnostic builds: the guest's match-end block, read only. Scans for it every 3 s until the guest has written it.
+  matchDiag() {
+    const memory = core?.wasmExports?.memory?.buffer ?? core?.HEAPU8?.buffer;
+    if (!memory) return null;
+    const bytes = new Uint8Array(memory);
+    if (diagBase < 0) { const now = performance.now(); if (now - diagScan < 3000) return null; diagScan = now; diagBase = findBlock(new Uint32Array(memory)); if (diagBase < 0) return null; }
+    const report = readBlock(bytes, diagBase);
+    if (!report) diagBase = -1;
+    else if (diagSerial) report.serialRow = diagSerial; // the guest's MATCHDIAG serial row, when the core passes serial output
+    return report;
+  },
   diagnostics() { sample(); return { ...metrics }; },
   networkDiagnostics() { return network?.metrics() ?? { state: "unavailable", guestNetwork: false }; },
   snapshot(pause = false) {

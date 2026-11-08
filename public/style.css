@@ -51,3 +51,6 @@ footer { display: flex; justify-content: space-between; align-items: center; gap
 #report { background: transparent; font-size: 13px; }
 @media (max-width: 760px) { main { margin: 28px auto; padding: 0 20px; } .workspace { grid-template-columns: 1fr; gap: 14px; } .masthead { margin-bottom: 22px; } h1 { font-size: 34px; } .session-label { font-size: 10px; } aside { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; } form { border: 0; margin: 0; padding: 0; } .hint { grid-column: 1 / -1; margin-top: 0; } }
 @media (max-width: 480px) { main { padding: 0 16px; margin: 24px auto; } .masthead { align-items: flex-start; flex-direction: column; gap: 14px; padding-bottom: 0; } .session-label { text-align: left; } .session-label span { display: inline; margin-left: 10px; font-size: 11px; } aside { grid-template-columns: 1fr; gap: 24px; } form { border-top: 1px solid var(--rule); padding-top: 22px; } footer { margin-top: 22px; } }
+.diag-panel { border: 2px solid #d9534f; padding: 8px 12px; margin-top: 8px; }
+.diag-panel[hidden] { display: none; }
+.diag-panel pre { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; font-size: 14px; }

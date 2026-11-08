@@ -9,6 +9,40 @@ const SIGNIN_ASSETS = new Set(["/signin.html", "/signin.css", "/signin.mjs",
   "/licenses", "/licenses.html", "/licenses.mjs", "/source.json", "/LICENSE-GPL-2.0.txt", "/LICENSE-EJS-GPL-3.0.txt"]);
 const SESSIONS_PER_MINUTE = 20, SESSION_BUCKETS = 4096;
 const sessionBuckets = new Map();
+// Match-end reports (diagnostic image): JSON only, small, a few per client a minute, stored under diag/ with no address.
+const DIAG_MAX_BYTES = 8192, DIAG_PER_MINUTE = 3;
+const diagBuckets = new Map();
+async function diagAllowed(request, env, now = Date.now()) {
+  const key = "diag:" + clientGroup(request);
+  if (env.DIAG_LIMIT?.limit) return (await env.DIAG_LIMIT.limit({ key })).success;
+  let bucket = diagBuckets.get(key);
+  if (!bucket || now - bucket.start >= 60000) {
+    if (!bucket && diagBuckets.size >= SESSION_BUCKETS) {
+      for (const [old, value] of diagBuckets) if (now - value.start >= 60000) diagBuckets.delete(old);
+      if (diagBuckets.size >= SESSION_BUCKETS) return false;
+    }
+    bucket = { start: now, count: 0 };
+    diagBuckets.set(key, bucket);
+  }
+  return ++bucket.count <= DIAG_PER_MINUTE;
+}
+async function storeDiag(request, env) {
+  if (request.headers.get("Origin") !== new URL(request.url).origin) return reply("Origin refused", 403);
+  if (!/^application\/json(;|$)/i.test(request.headers.get("Content-Type") ?? "")) return reply("JSON only", 415);
+  if (Number(request.headers.get("Content-Length") ?? 0) > DIAG_MAX_BYTES) return reply("Too large", 413);
+  if (!await diagAllowed(request, env)) return reply("Too many reports", 429, { "Retry-After": "60" });
+  if (!env.TEST_FILES) return reply("Reports not configured", 503);
+  const bytes = new Uint8Array(await request.arrayBuffer());
+  if (bytes.length === 0 || bytes.length > DIAG_MAX_BYTES) return reply("Too large", 413);
+  let body;
+  try { body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)); } catch { return reply("Not JSON", 400); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return reply("Not a report", 400);
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const key = `diag/${stamp}-${crypto.randomUUID().slice(0, 8)}.json`;
+  // The page's bytes as sent; the server adds nothing (no address, no headers).
+  await env.TEST_FILES.put(key, bytes, { httpMetadata: { contentType: "application/json" } });
+  return reply("Stored", 201);
+}
 
 const encode64 = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 function decode64(value) {
@@ -189,12 +223,17 @@ export default {
       return url.pathname.startsWith("/api/device-enrollment")
         ? proxyDeviceEnrollment(request, env, identity) : proxyGuestNetwork(request, env, identity);
     }
+    if (url.pathname === "/diag") {
+      if (request.method !== "POST") return reply("Method not allowed", 405, { Allow: "POST" });
+      if (!await sessionValid(request, env)) return reply("Open the page first", 401);
+      return storeDiag(request, env);
+    }
     if (!["GET", "HEAD"].includes(request.method)) return reply("Method not allowed", 405, { Allow: "GET, HEAD" });
     // Private object binding optional. Its bucket must have no public/custom-domain endpoint.
     if (url.pathname.startsWith("/files/")) {
       // Public mode opens the page, not the bucket: files take the session the page hands out.
       if (open && !await sessionValid(request, env)) return reply("Open the page first", 401);
-      if (!/^\/files\/[A-Za-z0-9._/-]+$/.test(url.pathname) || url.pathname.includes("..")) return reply("Not found", 404);
+      if (!/^\/files\/[A-Za-z0-9._/-]+$/.test(url.pathname) || url.pathname.includes("..") || url.pathname.startsWith("/files/diag/")) return reply("Not found", 404);
       if (!env.TEST_FILES) return reply("Test files not configured", 503);
       const key = url.pathname.slice(7);
       const object = request.method === "HEAD"

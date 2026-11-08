@@ -55,6 +55,7 @@ export async function boot({ canvas: host, imageBytes, manifest, onState = () =>
     setInput(value) { if (!stopped) api?.setInput(value); },
     releaseInput() { api?.releaseInput(); },
     diagnostics() { return api?.diagnostics() ?? {}; },
+    matchDiag() { return api?.matchDiag?.() ?? null; },
     networkDiagnostics() { return api?.networkDiagnostics() ?? { state: "unavailable", guestNetwork: false }; },
     async reset() { if (stopped) throw new Error("Runtime stopped"); clearInterval(snapshotTimer); try { await checkpoint(true); } catch (error) { api?.resume(); scheduleSnapshots(); throw error; } await dispose(); await start(); },
     async stop() { stopped = true; clearInterval(snapshotTimer); try { await checkpoint?.(true); } finally { await dispose(); await device?.close(); device = null; onState("stopped"); } },
