@@ -49,3 +49,7 @@ export function summary(r) {
     r.page ? `Page link: ${r.page.state}, ended by ${pageTransportText(r.page.terminalReason)}, close code ${r.page.closeCode}` : "",
   ].filter(Boolean).join("\n");
 }
+// A normal end: a decided match ("finished") or the player's own END GAME ("left"), no failing check, no error message, page link not cut.
+export function diagNormal(report) {
+  return ["finished", "left"].includes(report.end) && !report.message && !report.failingCheck?.check && !(report.page?.terminalReason && report.page.terminalReason !== 7);
+}

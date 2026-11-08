@@ -1,7 +1,7 @@
 ﻿import { validateManifest, report, readBounded } from "./model.mjs";
 import { prepareImage } from "./prepare-image.mjs";
 import { capabilities, boot } from "./runtime-adapter.mjs";
-import { summary, pageTransportText } from "./match-diag.mjs";
+import { summary, pageTransportText, diagNormal } from "./match-diag.mjs";
 const $ = id => document.getElementById(id);
 let manifest, runtime, preparedImage, busy = false, imageVerified = false;
 let runtimeState = "unavailable";
@@ -19,16 +19,17 @@ function diagSave(report) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function diagShow(report) {
-  diagLast = report;
-  report.savedAt = new Date().toISOString(); report.build = manifest.build; report.commit = manifest.commit;
-  $("diag").hidden = false; $("diag-text").textContent = summary(report);
-  $("diag-file").textContent = `Saved to your Downloads folder as halo-match-diag-${report.savedAt.replace(/[:.]/g, "-")}.json`;
-  diagSave(report);
-  diagSend(report);
+  report.savedAt = new Date().toISOString(); report.build = manifest.build; report.commit = manifest.commit; report.normal = diagNormal(report);
+  // Normal ends are sent, marked, and never pop the box; abnormal ones show it. Saving is the button only.
+  if (!report.normal) {
+    diagLast = report;
+    $("diag").hidden = false; $("diag-text").textContent = summary(report); $("diag-file").textContent = "";
+    diagSend(report, $("diag-sent"));
+  } else diagSend(report, null);
 }
 // Sends each report once to the site's /diag (8 KB at most): the report fields, image version, time and browser name. No keys, names or addresses.
-async function diagSend(report) {
-  const status = $("diag-sent"); status.textContent = "Sending report...";
+async function diagSend(report, status) {
+  if (status) status.textContent = "Sending report...";
   const body = { ...report, userAgent: navigator.userAgent.slice(0, 200) };
   let text = JSON.stringify(body);
   while (text.length > 8192 && body.events?.length) { body.events = body.events.slice(1); text = JSON.stringify(body); }
@@ -37,7 +38,7 @@ async function diagSend(report) {
   if (text.length <= 8192) {
     try { ok = (await fetch("/diag", { method: "POST", headers: { "Content-Type": "application/json" }, body: text, credentials: "same-origin" })).status === 201; } catch { ok = false; }
   }
-  status.textContent = ok ? "Report sent" : "Report not sent";
+  if (status) status.textContent = ok ? "Report sent" : "Report not sent";
 }
 function diagPoll() {
   if (!diagEnabled() || !runtime) return;

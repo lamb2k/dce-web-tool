@@ -23,3 +23,12 @@ test("no magic: nothing found, nothing read", () => {
   const heap = new Uint8Array(4096);
   assert.equal(findBlock(new Uint32Array(heap.buffer)), -1); assert.equal(readBlock(heap, 0), null);
 });
+import { diagNormal } from '../public/match-diag.mjs';
+test('only a decided match or the player leaving, with nothing wrong, is a normal end', () => {
+  const ok = { end: 'finished', message: '', failingCheck: { check: '' }, page: { terminalReason: 0 } };
+  assert.equal(diagNormal(ok), true);
+  assert.equal(diagNormal({ ...ok, end: 'left' }), true);
+  assert.equal(diagNormal({ ...ok, page: { terminalReason: 7 } }), true);
+  for (const bad of [{ end: 'failed' }, { end: 'ended' }, { end: 'host ended match' }, { end: 'connection failed in lobby' }, { message: 'MULTIPLAYER: connection lost' },
+    { failingCheck: { check: 'OPENCE_LOBBY_TRANSPORT' } }, { page: { terminalReason: 3 } }]) assert.equal(diagNormal({ ...ok, ...bad }), false, JSON.stringify(bad));
+});
